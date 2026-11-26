@@ -44,6 +44,9 @@
 #include <linux/file.h>
 #include <linux/memory_alloc.h>
 #include <linux/kthread.h>
+#ifdef CONFIG_MACH_Q7LTE_KOR
+#include <linux/pm_qos.h>
+#endif
 
 #include <mach/board.h>
 #include <mach/memory.h>
@@ -93,6 +96,32 @@ static int mdss_fb_pan_display(struct fb_var_screeninfo *var,
 static int mdss_fb_check_var(struct fb_var_screeninfo *var,
 			     struct fb_info *info);
 static int mdss_fb_set_par(struct fb_info *info);
+#ifdef CONFIG_MACH_Q7LTE_KOR
+/*
+ * SM-T255S (q7lteskt): while the BOE video-mode panel is on, the deepest
+ * idle mode (L2 power collapse + RPM sleep set, exit latency 12.7 ms in the
+ * lpm-levels DT) makes the panel show corrupted/flickering output.
+ * Verified on device: holding PM_QOS_CPU_DMA_LATENCY at 12000 us (blocks
+ * only that mode) removes the flicker; USB, GPU activity and high CPU
+ * clocks hid it because they also keep the CPUs out of that mode.
+ * Hold this request while the panel is on; release it on blank so that
+ * suspend/screen-off power is unchanged.
+ * TODO: find which sleep-set resource the panel path depends on
+ * (not CX, MX 1.15 V, XO or MDP->EBI bandwidth - all tested).
+ */
+#define Q7_PANEL_ON_LATENCY_US	12000
+static struct pm_qos_request q7_panel_qos;
+
+static void q7_panel_qos_update(bool panel_on)
+{
+	if (!pm_qos_request_active(&q7_panel_qos))
+		pm_qos_add_request(&q7_panel_qos, PM_QOS_CPU_DMA_LATENCY,
+				PM_QOS_DEFAULT_VALUE);
+	pm_qos_update_request(&q7_panel_qos, panel_on ?
+			Q7_PANEL_ON_LATENCY_US : PM_QOS_DEFAULT_VALUE);
+}
+#endif
+
 static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 			     int op_enable);
 static int mdss_fb_suspend_sub(struct msm_fb_data_type *mfd);
@@ -1008,6 +1037,10 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 				schedule_delayed_work(&mfd->idle_notify_work,
 					msecs_to_jiffies(mfd->idle_time));
 		}
+#ifdef CONFIG_MACH_Q7LTE_KOR
+		if (mfd->panel_power_on && mfd->index == 0)
+			q7_panel_qos_update(true);
+#endif
 		break;
 
 	case FB_BLANK_VSYNC_SUSPEND:
@@ -1040,6 +1073,10 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 
 			fist_commit_flag = 1;
 		}
+#ifdef CONFIG_MACH_Q7LTE_KOR
+		if (!mfd->panel_power_on && mfd->index == 0)
+			q7_panel_qos_update(false);
+#endif
 		break;
 	}
         mutex_unlock(&mfd->ctx_lock);
