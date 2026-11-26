@@ -323,6 +323,12 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl,
 //		msm_sensor_power_down(power_info, s_ctrl->sensor_device_type,
 //		sensor_i2c_client);
 #endif
+#if defined(CONFIG_MACH_Q7LTE_KOR)
+	/* q7: release regulators/GPIOs (shared MCLK etc.) of an absent sensor */
+	if (rc < 0)
+		msm_sensor_power_down(s_ctrl, power_info,
+			s_ctrl->sensor_device_type, sensor_i2c_client);
+#endif
 
 	return rc;
 }
@@ -357,6 +363,20 @@ int msm_sensor_match_id(struct msm_camera_i2c_client *sensor_i2c_client,
 
 	pr_info("func %s line %d chipid = 0x%X\n",
 		__func__, __LINE__, chipid);
+#if defined(CONFIG_MACH_Q7LTE_KOR)
+	/*
+	 * q7: the generic code below never fails, so absent sensors (e.g. the
+	 * ms013g front s5k6a3yx whose sensor lib expects id 0) were registered
+	 * and broke camera open. Require a real, matching chip id.
+	 */
+	if (rc < 0 || chipid == 0 || chipid != slave_info->sensor_id) {
+		pr_err("%s: %s not present: rc %d read id 0x%x expected 0x%x\n",
+			__func__, sensor_name, rc, chipid,
+			slave_info->sensor_id);
+		return -ENODEV;
+	}
+	return 0;
+#endif
 #if !defined(CONFIG_MACH_VASTALTE_CHN_CMCC_DUOS)
 	if (chipid != slave_info->sensor_id) {
 	    sensor_i2c_client->cci_client->sid = 0x6E >> 1;

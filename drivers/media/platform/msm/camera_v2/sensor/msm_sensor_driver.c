@@ -309,6 +309,55 @@ int32_t msm_sensor_driver_probe(void *setting)
         is_power_off = 1;
     }
 
+#if defined(CONFIG_MACH_Q7LTE_KOR)
+    /*
+     * q7: the KitKat (s3ve3g) imx175 sensor lib matches the ROM camera daemon
+     * ABI, but carries the S3 Neo power sequence, which does not bring the
+     * q7 sensor up. Use the q7 sequence from the stock 4.3 q7 imx175 lib.
+     */
+    if (!strcmp(slave_info->sensor_name, "imx175")) {
+        static const struct msm_sensor_power_setting q7_imx175_up[] = {
+            { SENSOR_GPIO, 0, 0, 0 },          /* reset low */
+            { SENSOR_GPIO, 2, 0, 0 },
+            { SENSOR_VREG, 2, 1, 3 },          /* cam_vaf on */
+            { SENSOR_VREG, 1, 1, 5 },          /* cam_vio on */
+            { SENSOR_GPIO, 4, 2, 2 },          /* ext vana high */
+            { SENSOR_GPIO, 8, 2, 5 },
+            { SENSOR_CLK, 0, 24000000, 2 },
+            { SENSOR_GPIO, 0, 2, 0 },          /* reset high */
+            { SENSOR_VREG, 0, 1, 2 },          /* cam_vdig on */
+            { SENSOR_I2C_MUX, 0, 0, 20 },
+        };
+        static const struct msm_sensor_power_setting q7_imx175_down[] = {
+            { SENSOR_CLK, 0, 0, 2 },
+            { SENSOR_VREG, 1, 0, 3 },
+            { SENSOR_I2C_MUX, 0, 0, 0 },
+            { SENSOR_VREG, 2, 0, 0 },
+            { SENSOR_GPIO, 4, 0, 5 },
+            { SENSOR_VREG, 0, 0, 2 },
+            { SENSOR_GPIO, 0, 0, 2 },
+            { SENSOR_GPIO, 8, 0, 1 },
+        };
+        struct msm_sensor_power_setting *up, *down;
+
+        up = kmemdup(q7_imx175_up, sizeof(q7_imx175_up), GFP_KERNEL);
+        down = kmemdup(q7_imx175_down, sizeof(q7_imx175_down), GFP_KERNEL);
+        if (up && down) {
+            kfree(power_setting);
+            kfree(power_off_setting);
+            power_setting = up;
+            size = ARRAY_SIZE(q7_imx175_up);
+            power_off_setting = down;
+            off_size = ARRAY_SIZE(q7_imx175_down);
+            is_power_off = 1;
+            pr_warn("%s: q7 imx175 power sequence applied\n", __func__);
+        } else {
+            kfree(up);
+            kfree(down);
+        }
+    }
+#endif
+
     camera_info = kzalloc(sizeof(struct msm_camera_slave_info), GFP_KERNEL);
     if (!camera_info) {
         if (is_power_off)
@@ -406,7 +455,8 @@ int32_t msm_sensor_driver_probe(void *setting)
 	|| defined (CONFIG_MACH_VICTORLTE_CTC) || defined(CONFIG_SEC_DEGAS_PROJECT) \
 	|| defined (CONFIG_SEC_T8_PROJECT) || defined (CONFIG_SEC_T10_PROJECT) \
 	|| defined (CONFIG_MACH_AFYONLTE_MTR) \
-	|| defined (CONFIG_SEC_RUBENS_PROJECT) // Added for YUV bringup
+	|| defined (CONFIG_SEC_RUBENS_PROJECT) \
+	|| defined (CONFIG_MACH_Q7LTE_KOR) // Added for YUV bringup; q7: reject absent sensors at probe
     /* Power up and probe sensor */
     rc = s_ctrl->func_tbl->sensor_power_up(s_ctrl,
                                            &s_ctrl->sensordata->power_info,
@@ -539,7 +589,8 @@ int32_t msm_sensor_driver_probe(void *setting)
 	|| defined(CONFIG_MACH_VICTORLTE_CTC) || defined(CONFIG_SEC_DEGAS_PROJECT) \
 	|| defined (CONFIG_SEC_T8_PROJECT) || defined (CONFIG_SEC_T10_PROJECT) \
 	|| defined (CONFIG_MACH_AFYONLTE_MTR) \
-	|| defined (CONFIG_SEC_RUBENS_PROJECT) // Added for YUV bringup ToDo
+	|| defined (CONFIG_SEC_RUBENS_PROJECT) \
+	|| defined (CONFIG_MACH_Q7LTE_KOR) // Added for YUV bringup ToDo
     /* Power down */
     s_ctrl->func_tbl->sensor_power_down(
                                         s_ctrl,

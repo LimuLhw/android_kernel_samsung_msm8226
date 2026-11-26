@@ -977,7 +977,11 @@ static void msm_vfe40_axi_clear_wm_xbar_reg(
 		vfe_dev->vfe_base + VFE40_XBAR_BASE(wm));
 }
 
+#if defined(CONFIG_MACH_Q7LTE_KOR)
+#define MSM_ISP40_TOTAL_WM_UB 819 /* stock q7 value */
+#else
 #define MSM_ISP40_TOTAL_WM_UB 1140
+#endif
 
 static void msm_vfe40_cfg_axi_ub_equal_default(
 	struct vfe_device *vfe_dev)
