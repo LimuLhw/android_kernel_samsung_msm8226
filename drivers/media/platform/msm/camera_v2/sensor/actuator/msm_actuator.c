@@ -35,6 +35,9 @@ static struct msm_actuator msm_piezo_actuator_table;
 static struct msm_actuator msm_hall_effect_actuator_table;
 static struct msm_actuator msm_hvcm_actuator_table;
 static struct msm_actuator msm_dw9804_actuator_table;
+#ifdef CONFIG_MACH_Q7LTE_KOR
+static bool q7_hall_as_dw9804;
+#endif
 
 static uint16_t hvca_inf_position, hvca_mac_position, torg;
 
@@ -772,6 +775,17 @@ static int32_t msm_actuator_dw9804_move_focus(
     uint32_t damp_threshold_index1 = (damping_params1->hw_params)&0x0000FFFF;
     uint32_t damp_threshold_step1 =  (damping_params1->hw_params>>16)&0x000000FF;
     uint32_t is_damping_first_time1 = (damping_params1->hw_params>>24)&0x000000FF;
+
+#ifdef CONFIG_MACH_Q7LTE_KOR
+    /* ROM (AK7345) ringing params may carry zero steps: avoid endless loops */
+    if (damp_step0 == 0)
+        damp_step0 = 1;
+    if (damp_step1 == 0)
+        damp_step1 = 8;
+    /* no damping thresholds in ROM params: move directly (no detour to 0) */
+    if (damp_threshold_step0 == 0)
+        damp_threshold_step0 = 0xff;
+#endif
     CDBG("%s Enter %d\n", __func__, __LINE__);
     CDBG("%s damp_step0=%d, damp_delay0=%d, damp_threshold_index0=%d, damp_threshold_step0=%d\n", __func__,
     damp_step0, damp_delay0, damp_threshold_index0,damp_threshold_step0);
@@ -1198,7 +1212,12 @@ static int32_t msm_actuator_dw9804_init_step_table(struct msm_actuator_ctrl_t *a
 		step_boundary =
 			a_ctrl->region_params[region_index].
 			step_bound[MOVE_NEAR];
+#ifdef CONFIG_MACH_Q7LTE_KOR
+		/* ROM tuning: step_bound == total_steps (table has total+1 slots) */
+		if (step_boundary > set_info->af_tuning_params.total_steps) {
+#else
 		if (step_boundary > set_info->af_tuning_params.total_steps - 1) {
+#endif
 			CDBG("%s: Error af steps mismatch!", __func__);
 			return -EFAULT;
 		}
@@ -1219,6 +1238,18 @@ static int32_t msm_actuator_dw9804_init_step_table(struct msm_actuator_ctrl_t *a
 			}
 		}
 	}
+#ifdef CONFIG_MACH_Q7LTE_KOR
+	/* ROM AK7345 tuning spans codes 0..329; DW9804 is 10-bit and the q7
+	 * lens needs roughly 100..700 for infinity..macro, so widen. Only for
+	 * the hall-effect override; real DW9804 tuning is used as is. */
+	for (step_index = 0; q7_hall_as_dw9804 &&
+		step_index < set_info->af_tuning_params.total_steps;
+		step_index++) {
+		uint32_t dac = 50 + 2 * a_ctrl->step_position_table[step_index];
+		a_ctrl->step_position_table[step_index] =
+			dac > 1023 ? 1023 : dac;
+	}
+#endif
 	for (step_index = 0;
 		step_index < set_info->af_tuning_params.total_steps;
 		step_index++) {
@@ -1469,6 +1500,18 @@ static int32_t msm_actuator_init(struct msm_actuator_ctrl_t *a_ctrl,
 	uint16_t i = 0;
 	CDBG("Enter\n");
 
+#ifdef CONFIG_MACH_Q7LTE_KOR
+	/* SM-T255S: the B08QT module has a DW9804 VCM driver, but the ROM
+	 * (ms013g) actuator lib asks for a hall-effect (AK7345) actuator,
+	 * whose writes to regs 0x00/0x01 hit DW9804 read-only ID registers.
+	 * Drive it with the DW9804 functions instead. */
+	q7_hall_as_dw9804 = false;
+	if (set_info->actuator_params.act_type == ACTUATOR_HALL_EFFECT) {
+		pr_info("%s: q7: hall effect actuator -> DW9804\n", __func__);
+		set_info->actuator_params.act_type = ACTUATOR_DW9804;
+		q7_hall_as_dw9804 = true;
+	}
+#endif
 	for (i = 0; i < ARRAY_SIZE(actuators); i++) {
 		if (set_info->actuator_params.act_type ==
 			actuators[i]->act_type) {
