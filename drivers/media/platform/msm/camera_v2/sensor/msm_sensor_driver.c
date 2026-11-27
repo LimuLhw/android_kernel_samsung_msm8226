@@ -243,6 +243,12 @@ int32_t msm_sensor_driver_probe(void *setting)
     if (slave_info->camera_id == CAMERA_0){
 		s_ctrl->func_tbl = &s5k4ecgx_sensor_func_tbl;
     }
+#elif defined(CONFIG_MACH_Q7LTE_KOR) && defined(CONFIG_SR200PC20)
+    /* SM-T255S: front camera is a SR200PC20M YUV sensor */
+    if (slave_info->camera_id == CAMERA_2) {
+		s_ctrl->func_tbl = &sr200pc20_sensor_func_tbl;
+		sr200pc20_set_default_settings();
+    }
 #endif 
 
     CDBG("s_ctrl[%d] %pK", slave_info->camera_id, s_ctrl);

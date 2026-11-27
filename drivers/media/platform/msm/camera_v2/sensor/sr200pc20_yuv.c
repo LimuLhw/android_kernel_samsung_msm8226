@@ -21,6 +21,8 @@
 #include "sr200pc20_yuv_t8.h"
 #elif defined(CONFIG_SEC_T10_PROJECT)
 #include "sr200pc20_yuv_t10.h"
+#elif defined(CONFIG_MACH_Q7LTE_KOR)
+#include "sr200pc20_yuv_q7kor.h"
 #endif
 
 #if 0

@@ -2566,6 +2566,7 @@ CONFIG_MSM_ISPIF=y
 # CONFIG_SR352 is not set
 # CONFIG_SR030PC50 is not set
 # CONFIG_SR130PC20 is not set
+CONFIG_SR200PC20=y
 # CONFIG_S5K4ECGX is not set
 # CONFIG_IMX135 is not set
 # CONFIG_IMX175 is not set

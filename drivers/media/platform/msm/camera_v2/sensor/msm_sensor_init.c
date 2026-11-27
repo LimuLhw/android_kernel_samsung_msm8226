@@ -28,6 +28,12 @@
 #define CDBG(fmt, args...) do { } while (0)
 #endif
 
+#if defined(CONFIG_MACH_Q7LTE_KOR)
+/* q7: SR200PC20 is the FRONT camera; keep the rear (IMX175) sysfs as for a
+ * Bayer sensor, which the camera daemon reads */
+#undef CONFIG_SR200PC20
+#endif
+
 #if defined(CONFIG_SR352) || defined(CONFIG_SR200PC20) || defined(CONFIG_S5K4ECGX)
 #define REAR_YUV_SENSOR
 #endif

@@ -1073,6 +1073,19 @@ int msm_camera_init_gpio_pin_tbl(struct device_node *of_node,
 		CDBG("%s qcom,gpio-mipi-change %d\n", __func__,
 			gconf->gpio_num_info->gpio_num[SENSOR_GPIO_MIPI_CHANGE]);
 	}
+#ifdef CONFIG_MACH_Q7LTE_KOR
+	/*
+	 * q7: the stock q7 sensor libs (and kernel) number the VT camera
+	 * analog-power and IO-enable GPIOs 7 and 8 (EXT_VANA_POWER_VT,
+	 * EXT_CAMIO_EN_VT). Put the matching DT entries in those slots.
+	 */
+	if (of_property_read_u32(of_node, "qcom,gpio-ext-vana-power-vt",
+			&val) == 0 && val < gpio_array_size)
+		gconf->gpio_num_info->gpio_num[7] = gpio_array[val];
+	if (of_property_read_u32(of_node, "qcom,gpio-ext-camio-en-vt",
+			&val) == 0 && val < gpio_array_size)
+		gconf->gpio_num_info->gpio_num[8] = gpio_array[val];
+#endif
 	return rc;
 
 ERROR:
